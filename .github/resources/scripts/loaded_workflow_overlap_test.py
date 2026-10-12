@@ -31,6 +31,7 @@ WORKFLOW_JOBS = {
     '.github/workflows/e2e-test-frontend.yml': ('frontend-integration-test',),
     '.github/workflows/e2e-test.yml': (
         'end-to-end-scenario-tests',
+        'dag-scale-test',
         'end-to-end-critical-scenario-multi-user-tests',
         'end-to-end-critical-mlflow-tests',
     ),
@@ -42,6 +43,10 @@ WORKFLOW_JOBS = {
         ('api-integration-tests-v2',),
     '.github/workflows/upgrade-test.yml': ('upgrade-test',),
 }
+# Waiting test lanes hold a billed runner for the whole image build, so they
+# start after it. Upgrade setup deploys the last release meanwhile, so it keeps
+# overlapping.
+OVERLAPPING_JOBS = {('.github/workflows/upgrade-test.yml', 'upgrade-test')}
 
 
 def _job_block(workflow: str, job_name: str) -> str:
@@ -56,7 +61,8 @@ def _job_block(workflow: str, job_name: str) -> str:
 
 class LoadedWorkflowOverlapTest(unittest.TestCase):
 
-    def test_all_deploy_callers_overlap_cluster_setup_with_image_builds(self):
+    def test_deploy_callers_start_after_image_builds_unless_setup_overlaps(
+            self):
         deploy_callers = set()
         for workflow_path in (ROOT / '.github/workflows').glob('*.y*ml'):
             workflow = workflow_path.read_text(encoding='utf-8')
@@ -71,7 +77,11 @@ class LoadedWorkflowOverlapTest(unittest.TestCase):
             for job_name in job_names:
                 with self.subTest(workflow=relative_path, job=job_name):
                     job = _job_block(workflow, job_name)
-                    self.assertNotIn('needs: build', job)
+                    if (relative_path, job_name) in OVERLAPPING_JOBS:
+                        self.assertNotIn('needs: build', job)
+                    else:
+                        self.assertIn(f'  {job_name}:\n    needs: build\n',
+                                      job)
                     self.assertIn(
                         'permissions:\n      actions: read\n'
                         '      contents: read', job)

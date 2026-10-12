@@ -63,6 +63,7 @@ jobs:
     uses: ./.github/workflows/image-builds.yml
 
   api-test-standalone:
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -189,6 +190,7 @@ jobs:
 
 
   api-test-k8s-native:
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -243,6 +245,7 @@ jobs:
 
 
   api-test-multi-user:
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       actions: read
